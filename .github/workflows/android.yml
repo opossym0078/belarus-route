@@ -28,6 +28,18 @@ jobs:
       - name: Создать Android-проект
         run: |
           set -e
+          # файлы сайта могут лежать в корне, в подпапке или в загруженном .zip
+          if [ ! -f index.html ]; then
+            Z=$(find . -name '*.zip' -not -path './.git/*' | head -1)
+            if [ -n "$Z" ]; then unzip -o -j "$Z" -d . ; fi
+          fi
+          if [ ! -f index.html ]; then
+            F=$(find . -name index.html -not -path './.git/*' | head -1)
+            if [ -n "$F" ]; then D=$(dirname "$F"); cp "$D"/index.html "$D"/sw.js "$D"/manifest.webmanifest "$D"/icon-*.png . ; cp "$D"/blr.jks . 2>/dev/null || true; fi
+          fi
+          if [ ! -f index.html ]; then echo "::error::Не нашёл index.html — загрузите файлы сайта в репозиторий"; ls -la; exit 1; fi
+          if [ ! -f blr.jks ]; then echo "::error::Не нашёл blr.jks — загрузите его в репозиторий"; exit 1; fi
+          mkdir -p _site && cp index.html sw.js manifest.webmanifest icon-*.png _site/
           A=android/app/src/main
           mkdir -p $A/java/by/route/blr $A/assets/www $A/res/values $A/res/values-night $A/res/mipmap-xxxhdpi
           cp index.html sw.js manifest.webmanifest icon-*.png $A/assets/www/
@@ -321,4 +333,22 @@ jobs:
         with:
           name: Belarus-apk
           path: Belarus.apk
-          
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  # сайт на GitHub Pages (Settings → Pages → Source: GitHub Actions)
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.dep.outputs.page_url }}
+    steps:
+      - id: dep
+        uses: actions/deploy-pages@v4
+        
